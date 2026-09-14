@@ -8,14 +8,14 @@ export interface ScheduleRow {
   arrival_time: string;
   days_of_week: number[];
   status: string;
-  route?: { route_name: string };
+  route?: { route_name: string; source?: string; destination?: string };
   bus?: { bus_number: string };
 }
 
 export async function listSchedules(supabase: SupabaseClient) {
   const { data, error } = await supabase
     .from("schedules")
-    .select("*, route:routes ( route_name ), bus:buses ( bus_number )")
+    .select("*, route:routes ( route_name, source, destination ), bus:buses ( bus_number )")
     .order("departure_time");
   if (error) throw error;
   return data as ScheduleRow[];

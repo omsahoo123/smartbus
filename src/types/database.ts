@@ -52,6 +52,8 @@ export interface RouteRow {
   status: string;
 }
 
+export type Route = RouteRow;
+
 export interface Stop {
   id: string;
   name: string;

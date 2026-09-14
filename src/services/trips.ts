@@ -11,22 +11,22 @@ export interface TripRow {
   end_time: string | null;
   status: string;
   created_at: string;
-  route?: { route_name: string };
+  route?: { route_name: string; source?: string; destination?: string };
   bus?: { bus_number: string };
-  driver?: { id: string; profile: { full_name: string | null } } | null;
+  driver?: { id: string; license_number?: string; profile?: { full_name: string | null; phone?: string | null } } | null;
 }
 
 export async function listTrips(supabase: SupabaseClient) {
   const { data, error } = await supabase
     .from("trips")
-    .select("*, route:routes ( route_name ), bus:buses ( bus_number ), driver:drivers ( id, profile:profiles ( full_name ) )")
+    .select("*, route:routes ( route_name, source, destination ), bus:buses ( bus_number ), driver:drivers ( id, license_number, profile:profiles ( full_name, phone ) )")
     .order("trip_date", { ascending: false })
     .limit(200);
   if (error) throw error;
   return data as TripRow[];
 }
 
-export async function assignDriverToTrip(supabase: SupabaseClient, tripId: string, driverId: string) {
+export async function assignDriverToTrip(supabase: SupabaseClient, tripId: string, driverId: string | null) {
   const { error } = await supabase
     .from("trips")
     .update({ driver_id: driverId })
