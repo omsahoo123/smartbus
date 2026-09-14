@@ -48,8 +48,9 @@ export async function middleware(request: NextRequest) {
       .eq("id", user.id)
       .single();
 
-    userRole = profile?.role ?? "people";
-    response.cookies.set("sb-role", userRole, {
+    const resolvedRole: string = String(profile?.role ?? "people");
+    userRole = resolvedRole;
+    response.cookies.set("sb-role", resolvedRole, {
       path: "/",
       maxAge: 60 * 60 * 24 * 7,
       sameSite: "lax",
