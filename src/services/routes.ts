@@ -29,3 +29,27 @@ export async function listRoutes(supabase: SupabaseClient) {
   if (error) throw error;
   return data;
 }
+
+export async function createRoute(
+  supabase: SupabaseClient,
+  input: { route_name: string; source: string; destination: string; distance?: number; estimated_duration?: string; status: string }
+) {
+  const { data, error } = await supabase.from("routes").insert(input).select().single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateRoute(
+  supabase: SupabaseClient,
+  id: string,
+  input: Partial<{ route_name: string; source: string; destination: string; distance: number; estimated_duration: string; status: string }>
+) {
+  const { data, error } = await supabase.from("routes").update(input).eq("id", id).select().single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteRoute(supabase: SupabaseClient, id: string) {
+  const { error } = await supabase.from("routes").delete().eq("id", id);
+  if (error) throw error;
+}
