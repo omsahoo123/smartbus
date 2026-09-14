@@ -62,6 +62,17 @@ export default function SignupPage() {
         return;
       }
 
+      // Auto-register driver record if signing up as driver
+      if (role === "driver") {
+        const cleanPhone = phone.trim().replace(/\D/g, "");
+        const license = cleanPhone ? `OD-DL-${cleanPhone}` : `OD-DL-${data.user.id.slice(0, 8).toUpperCase()}`;
+        await supabase.from("drivers").insert({
+          profile_id: data.user.id,
+          license_number: license,
+          status: "active",
+        }).catch(() => {});
+      }
+
       // Cache role in cookie
       document.cookie = `sb-role=${role}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`;
 

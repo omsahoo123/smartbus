@@ -12,16 +12,49 @@ export interface DriverRow {
 }
 
 export async function listDrivers(supabase: SupabaseClient) {
+  // 1. Find all profiles that have role='driver'
+  const { data: driverProfiles } = await supabase
+    .from("profiles")
+    .select("id, full_name, phone, email")
+    .eq("role", "driver");
+
+  // 2. Find existing driver records
+  const { data: existingDrivers } = await supabase
+    .from("drivers")
+    .select("id, profile_id");
+
+  const existingProfileIds = new Set((existingDrivers ?? []).map((d) => d.profile_id));
+
+  // 3. Auto-sync: If a user is registered/promoted as driver, ensure they exist in drivers table
+  if (driverProfiles && driverProfiles.length > 0) {
+    for (const p of driverProfiles) {
+      if (!existingProfileIds.has(p.id)) {
+        const cleanPhone = (p.phone || "").replace(/\D/g, "");
+        const fallbackLicense = cleanPhone
+          ? `OD-DL-${cleanPhone}`
+          : `OD-DL-${p.id.slice(0, 8).toUpperCase()}`;
+
+        await supabase.from("drivers").insert({
+          profile_id: p.id,
+          license_number: fallbackLicense,
+          status: "active",
+        }).catch(() => {});
+      }
+    }
+  }
+
+  // 4. Return all drivers with linked profile and bus data
   const { data, error } = await supabase
     .from("drivers")
     .select("*, profile:profiles ( full_name, phone, email ), bus:buses ( bus_number )")
     .order("created_at", { ascending: false });
+
   if (error) throw error;
   return data as DriverRow[];
 }
 
 /** Profiles with role='driver' that do NOT yet have a record in the drivers table */
-export async function listUnassignedDriverUsers(supabase: SupabaseClient) {
+export async function listUnassignedDriverProfiles(supabase: SupabaseClient) {
   const { data: allDriverProfiles } = await supabase
     .from("profiles")
     .select("id, full_name, phone, email")
