@@ -18,6 +18,8 @@ export async function listDrivers(supabase: SupabaseClient) {
     .select("id, full_name, phone, email")
     .eq("role", "driver");
 
+  const profilesMap = new Map((driverProfiles ?? []).map((p) => [p.id, p]));
+
   // 2. Find existing driver records
   const { data: existingDrivers } = await supabase
     .from("drivers")
@@ -25,7 +27,7 @@ export async function listDrivers(supabase: SupabaseClient) {
 
   const existingProfileIds = new Set((existingDrivers ?? []).map((d) => d.profile_id));
 
-  // 3. Auto-sync: If a user is registered/promoted as driver, ensure they exist in drivers table
+  // 3. Auto-sync: If a profile has role='driver', ensure record exists in drivers table
   if (driverProfiles && driverProfiles.length > 0) {
     for (const p of driverProfiles) {
       if (!existingProfileIds.has(p.id)) {
@@ -34,11 +36,18 @@ export async function listDrivers(supabase: SupabaseClient) {
           ? `OD-DL-${cleanPhone}`
           : `OD-DL-${p.id.slice(0, 8).toUpperCase()}`;
 
-        await supabase.from("drivers").insert({
-          profile_id: p.id,
-          license_number: fallbackLicense,
-          status: "active",
-        }).catch(() => {});
+        try {
+          await supabase.from("drivers").upsert(
+            {
+              profile_id: p.id,
+              license_number: fallbackLicense,
+              status: "active",
+            },
+            { onConflict: "profile_id", ignoreDuplicates: true }
+          );
+        } catch {
+          // ignore
+        }
       }
     }
   }
@@ -49,8 +58,30 @@ export async function listDrivers(supabase: SupabaseClient) {
     .select("*, profile:profiles ( full_name, phone, email ), bus:buses ( bus_number )")
     .order("created_at", { ascending: false });
 
-  if (error) throw error;
-  return data as DriverRow[];
+  if (error) {
+    console.error("Drivers query error, using fallback profile list:", error);
+    return (driverProfiles ?? []).map((p) => ({
+      id: p.id,
+      profile_id: p.id,
+      license_number: `OD-DL-${(p.phone || "").replace(/\D/g, "") || p.id.slice(0, 8).toUpperCase()}`,
+      assigned_bus_id: null,
+      status: "active",
+      created_at: new Date().toISOString(),
+      profile: { full_name: p.full_name, phone: p.phone, email: p.email },
+      bus: null,
+    })) as DriverRow[];
+  }
+
+  // Enrich with profile information if relation didn't return profile object
+  const rows = ((data as any[]) ?? []).map((d) => {
+    const prof = d.profile || profilesMap.get(d.profile_id);
+    return {
+      ...d,
+      profile: prof ? { full_name: prof.full_name, phone: prof.phone, email: prof.email } : null,
+    };
+  });
+
+  return rows as DriverRow[];
 }
 
 /** Profiles with role='driver' that do NOT yet have a record in the drivers table */

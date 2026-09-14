@@ -66,11 +66,18 @@ export default function SignupPage() {
       if (role === "driver") {
         const cleanPhone = phone.trim().replace(/\D/g, "");
         const license = cleanPhone ? `OD-DL-${cleanPhone}` : `OD-DL-${data.user.id.slice(0, 8).toUpperCase()}`;
-        await supabase.from("drivers").insert({
-          profile_id: data.user.id,
-          license_number: license,
-          status: "active",
-        }).catch(() => {});
+        try {
+          await supabase.from("drivers").upsert(
+            {
+              profile_id: data.user.id,
+              license_number: license,
+              status: "active",
+            },
+            { onConflict: "profile_id", ignoreDuplicates: true }
+          );
+        } catch {
+          // ignore if non-admin RLS restricts driver creation
+        }
       }
 
       // Cache role in cookie

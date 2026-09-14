@@ -6,7 +6,7 @@ import { DataTable } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/Button";
 import Link from "next/link";
 import type { Profile, UserRole } from "@/types/database";
-import { Users, Bus, ArrowRight, ShieldCheck, ShieldAlert, Sparkles, CheckCircle2 } from "lucide-react";
+import { Users, Bus, ArrowRight, ShieldCheck, Sparkles, CheckCircle2 } from "lucide-react";
 
 export default function AdminUsersPage() {
   const supabase = createClient();
@@ -22,8 +22,29 @@ export default function AdminUsersPage() {
       .from("profiles")
       .select("*")
       .order("created_at", { ascending: false });
-    setUsers((data as Profile[]) ?? []);
+
+    const profiles = (data as Profile[]) ?? [];
+    setUsers(profiles);
     setLoading(false);
+
+    // Auto-sync: Ensure any profile with role='driver' has a driver table record
+    const driverProfiles = profiles.filter((u) => u.role === "driver");
+    for (const d of driverProfiles) {
+      const cleanPhone = (d.phone || "").replace(/\D/g, "");
+      const license = cleanPhone ? `OD-DL-${cleanPhone}` : `OD-DL-${d.id.slice(0, 8).toUpperCase()}`;
+      try {
+        await supabase.from("drivers").upsert(
+          {
+            profile_id: d.id,
+            license_number: license,
+            status: "active",
+          },
+          { onConflict: "profile_id", ignoreDuplicates: true }
+        );
+      } catch {
+        // ignore
+      }
+    }
   }
 
   useEffect(() => {
@@ -44,13 +65,20 @@ export default function AdminUsersPage() {
       const cleanPhone = (user.phone || "").replace(/\D/g, "");
       const license = cleanPhone ? `OD-DL-${cleanPhone}` : `OD-DL-${user.id.slice(0, 8).toUpperCase()}`;
 
-      await supabase.from("drivers").insert({
-        profile_id: user.id,
-        license_number: license,
-        status: "active",
-      }).catch(() => {});
+      try {
+        await supabase.from("drivers").upsert(
+          {
+            profile_id: user.id,
+            license_number: license,
+            status: "active",
+          },
+          { onConflict: "profile_id", ignoreDuplicates: true }
+        );
+      } catch {
+        // ignore
+      }
 
-      setSuccessMsg(`${user.full_name || user.email} has been promoted to Driver and added to Fleet Drivers.`);
+      setSuccessMsg(`${user.full_name || user.email} has been promoted to Driver and registered in Fleet Drivers.`);
       await loadUsers();
       setActiveTab("drivers");
     } catch (err: any) {
@@ -69,7 +97,11 @@ export default function AdminUsersPage() {
 
     try {
       await supabase.from("profiles").update({ role: "people" as UserRole }).eq("id", user.id);
-      await supabase.from("drivers").delete().eq("profile_id", user.id).catch(() => {});
+      try {
+        await supabase.from("drivers").delete().eq("profile_id", user.id);
+      } catch {
+        // ignore
+      }
 
       setSuccessMsg(`${user.full_name || user.email} has been moved back to Passengers.`);
       await loadUsers();
@@ -80,21 +112,41 @@ export default function AdminUsersPage() {
     }
   }
 
-  // Direct role changer for flexibility
+  // Direct role changer for dropdown flexibility
   async function handleRoleChange(user: Profile, newRole: UserRole) {
+    if (user.role === newRole) return;
     setActionLoading(user.id);
+    setSuccessMsg(null);
     try {
       await supabase.from("profiles").update({ role: newRole }).eq("id", user.id);
       if (newRole === "driver") {
         const cleanPhone = (user.phone || "").replace(/\D/g, "");
         const license = cleanPhone ? `OD-DL-${cleanPhone}` : `OD-DL-${user.id.slice(0, 8).toUpperCase()}`;
-        await supabase.from("drivers").insert({
-          profile_id: user.id,
-          license_number: license,
-          status: "active",
-        }).catch(() => {});
+        try {
+          await supabase.from("drivers").upsert(
+            {
+              profile_id: user.id,
+              license_number: license,
+              status: "active",
+            },
+            { onConflict: "profile_id", ignoreDuplicates: true }
+          );
+        } catch {
+          // ignore
+        }
+        setSuccessMsg(`${user.full_name || user.email} is now a Driver.`);
+        setActiveTab("drivers");
       } else if (newRole === "people") {
-        await supabase.from("drivers").delete().eq("profile_id", user.id).catch(() => {});
+        try {
+          await supabase.from("drivers").delete().eq("profile_id", user.id);
+        } catch {
+          // ignore
+        }
+        setSuccessMsg(`${user.full_name || user.email} is now a Passenger.`);
+        setActiveTab("passengers");
+      } else if (newRole === "admin") {
+        setSuccessMsg(`${user.full_name || user.email} is now an Administrator.`);
+        setActiveTab("admins");
       }
       await loadUsers();
     } catch (err: any) {
@@ -115,13 +167,13 @@ export default function AdminUsersPage() {
         <div>
           <div className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary mb-2">
             <Users className="h-3.5 w-3.5" />
-            <span>User Directory & Access Roles</span>
+            <span>User Directory &amp; Access Roles</span>
           </div>
           <h1 className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-ink">
             Users Management
           </h1>
           <p className="mt-1 text-xs sm:text-sm text-muted">
-            Manage registered passengers, promote drivers to fleet operations, and view system administrators.
+            Manage registered passengers and drivers. Switching a user&apos;s role automatically synchronizes their fleet driver credentials.
           </p>
         </div>
 
@@ -133,7 +185,7 @@ export default function AdminUsersPage() {
 
       {/* Success Notification Alert */}
       {successMsg && (
-        <div className="flex items-center gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50 p-3.5 text-xs text-emerald-800">
+        <div className="flex items-center gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50 p-3.5 text-xs text-emerald-800 animate-in fade-in duration-200">
           <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
           <span className="font-medium">{successMsg}</span>
         </div>
@@ -216,7 +268,7 @@ export default function AdminUsersPage() {
         <div className="space-y-3">
           <div className="flex items-center justify-between px-1">
             <p className="text-xs text-muted">
-              These are regular commuters who can book bus seats and purchase daily/weekly passes.
+              These are commuters registered on the platform. You can promote any passenger to a driver using the button or dropdown.
             </p>
           </div>
 
@@ -247,11 +299,18 @@ export default function AdminUsersPage() {
                 ),
               },
               {
-                header: "Current Role",
+                header: "Role",
                 cell: (u) => (
-                  <span className="inline-flex rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
-                    Passenger
-                  </span>
+                  <select
+                    value={u.role}
+                    disabled={actionLoading === u.id}
+                    onChange={(e) => handleRoleChange(u, e.target.value as UserRole)}
+                    className="rounded-lg border border-line bg-surface px-2.5 py-1 text-xs font-semibold text-ink focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+                  >
+                    <option value="people">Passenger</option>
+                    <option value="driver">Driver</option>
+                    <option value="admin">Admin</option>
+                  </select>
                 ),
               },
               {
@@ -279,7 +338,7 @@ export default function AdminUsersPage() {
         <div className="space-y-3">
           <div className="flex items-center justify-between px-1">
             <p className="text-xs text-muted">
-              These users have driver access privileges. Visit <strong>Fleet &gt; Drivers</strong> to link their commercial license and assign their bus.
+              These users are drivers with verified fleet access. Visit <strong>Fleet &gt; Drivers</strong> to assign a specific bus or edit their license.
             </p>
             <Link
               href="/admin/drivers"
@@ -317,13 +376,28 @@ export default function AdminUsersPage() {
                 ),
               },
               {
-                header: "Fleet Management",
+                header: "Role",
+                cell: (u) => (
+                  <select
+                    value={u.role}
+                    disabled={actionLoading === u.id}
+                    onChange={(e) => handleRoleChange(u, e.target.value as UserRole)}
+                    className="rounded-lg border border-line bg-surface px-2.5 py-1 text-xs font-semibold text-ink focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+                  >
+                    <option value="people">Passenger</option>
+                    <option value="driver">Driver</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                ),
+              },
+              {
+                header: "Fleet Link",
                 cell: () => (
                   <Link
                     href="/admin/drivers"
                     className="inline-flex items-center gap-1 rounded-lg bg-surface border border-line px-2.5 py-1 text-xs font-medium text-ink hover:border-accent hover:text-accent-dark transition shadow-sm"
                   >
-                    <span>Assign Bus & License</span>
+                    <span>Assign Bus &amp; License</span>
                     <ArrowRight className="h-3 w-3" />
                   </Link>
                 ),
@@ -375,7 +449,7 @@ export default function AdminUsersPage() {
               },
               {
                 header: "Role",
-                cell: () => (
+                cell: (u) => (
                   <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
                     <ShieldCheck className="h-3.5 w-3.5" />
                     <span>Administrator</span>

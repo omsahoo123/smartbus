@@ -41,3 +41,23 @@ export async function updateTripStatus(supabase: SupabaseClient, tripId: string,
   const { error } = await supabase.from("trips").update(updates).eq("id", tripId);
   if (error) throw error;
 }
+
+export async function createTrip(
+  supabase: SupabaseClient,
+  input: {
+    route_id: string;
+    bus_id: string;
+    driver_id: string | null;
+    trip_date: string;
+    status: string;
+  }
+) {
+  const { data, error } = await supabase.from("trips").insert(input).select().single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteTrip(supabase: SupabaseClient, tripId: string) {
+  const { error } = await supabase.from("trips").delete().eq("id", tripId);
+  if (error) throw error;
+}
