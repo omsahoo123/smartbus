@@ -40,7 +40,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  let userRole = role;
+  let userRole: string = role ?? "";
   if (!userRole) {
     const { data: profile } = await supabase
       .from("profiles")
