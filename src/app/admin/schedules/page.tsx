@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -36,7 +36,7 @@ export default function AdminSchedulesPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const [sList, rList, bList] = await Promise.all([
@@ -52,11 +52,12 @@ export default function AdminSchedulesPage() {
     } finally {
       setLoading(false);
     }
-  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     load();
-  }, []);
+  }, [load]);
 
   function openCreate() {
     setEditingSchedule(null);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -64,7 +64,7 @@ export default function AdminTripsPage() {
   const todayStr = new Date().toISOString().slice(0, 10);
   const tomorrowStr = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const [tList, dList, rList, bList] = await Promise.all([
@@ -82,11 +82,12 @@ export default function AdminTripsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     load();
-  }, []);
+  }, [load]);
 
   // Group trips by date
   const groupedTrips = useMemo(() => {
@@ -370,7 +371,7 @@ export default function AdminTripsPage() {
           <Calendar className="h-8 w-8 mx-auto text-muted/60" />
           <p className="font-semibold text-ink">No trips found for the selected filter.</p>
           <p className="text-xs">
-            Use "+ Schedule New Trip" above to plan new operational bus routes.
+            Use &quot;+ Schedule New Trip&quot; above to plan new operational bus routes.
           </p>
         </div>
       ) : (

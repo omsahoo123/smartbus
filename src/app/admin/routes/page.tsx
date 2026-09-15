@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -23,13 +23,14 @@ export default function AdminRoutesPage() {
   const [editing, setEditing] = useState<Partial<RouteRow>>(EMPTY);
   const [error, setError] = useState<string | null>(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     setRoutes((await listRoutes(supabase)) as RouteRow[]);
     setLoading(false);
-  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+  useEffect(() => { load(); }, [load]);
 
   function openCreate() { setEditing(EMPTY); setError(null); setModalOpen(true); }
   function openEdit(r: RouteRow) { setEditing(r); setError(null); setModalOpen(true); }
