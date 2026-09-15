@@ -197,20 +197,18 @@ export default function AdminUsersPage() {
         <button
           type="button"
           onClick={() => { setActiveTab("passengers"); setSuccessMsg(null); }}
-          className={`flex items-center justify-center gap-2 rounded-xl py-3 px-4 text-xs sm:text-sm font-semibold transition ${
-            activeTab === "passengers"
+          className={`flex items-center justify-center gap-2 rounded-xl py-3 px-4 text-xs sm:text-sm font-semibold transition ${activeTab === "passengers"
               ? "bg-surface text-primary shadow-sm border border-line/60"
               : "text-muted hover:text-ink hover:bg-surface/50"
-          }`}
+            }`}
         >
           <Users className="h-4 w-4" />
           <span>Passengers</span>
           <span
-            className={`ml-1 rounded-full px-2 py-0.5 text-[11px] font-bold ${
-              activeTab === "passengers"
+            className={`ml-1 rounded-full px-2 py-0.5 text-[11px] font-bold ${activeTab === "passengers"
                 ? "bg-primary/10 text-primary"
                 : "bg-muted/10 text-muted"
-            }`}
+              }`}
           >
             {passengers.length}
           </span>
@@ -220,20 +218,18 @@ export default function AdminUsersPage() {
         <button
           type="button"
           onClick={() => { setActiveTab("drivers"); setSuccessMsg(null); }}
-          className={`flex items-center justify-center gap-2 rounded-xl py-3 px-4 text-xs sm:text-sm font-semibold transition ${
-            activeTab === "drivers"
+          className={`flex items-center justify-center gap-2 rounded-xl py-3 px-4 text-xs sm:text-sm font-semibold transition ${activeTab === "drivers"
               ? "bg-surface text-accent-dark shadow-sm border border-line/60"
               : "text-muted hover:text-ink hover:bg-surface/50"
-          }`}
+            }`}
         >
           <Bus className="h-4 w-4" />
           <span>Drivers</span>
           <span
-            className={`ml-1 rounded-full px-2 py-0.5 text-[11px] font-bold ${
-              activeTab === "drivers"
+            className={`ml-1 rounded-full px-2 py-0.5 text-[11px] font-bold ${activeTab === "drivers"
                 ? "bg-accent/20 text-accent-dark"
                 : "bg-muted/10 text-muted"
-            }`}
+              }`}
           >
             {drivers.length}
           </span>
@@ -243,20 +239,18 @@ export default function AdminUsersPage() {
         <button
           type="button"
           onClick={() => { setActiveTab("admins"); setSuccessMsg(null); }}
-          className={`flex items-center justify-center gap-2 rounded-xl py-3 px-4 text-xs sm:text-sm font-semibold transition ${
-            activeTab === "admins"
+          className={`flex items-center justify-center gap-2 rounded-xl py-3 px-4 text-xs sm:text-sm font-semibold transition ${activeTab === "admins"
               ? "bg-surface text-ink shadow-sm border border-line/60"
               : "text-muted hover:text-ink hover:bg-surface/50"
-          }`}
+            }`}
         >
           <ShieldCheck className="h-4 w-4" />
           <span>Admins</span>
           <span
-            className={`ml-1 rounded-full px-2 py-0.5 text-[11px] font-bold ${
-              activeTab === "admins"
+            className={`ml-1 rounded-full px-2 py-0.5 text-[11px] font-bold ${activeTab === "admins"
                 ? "bg-ink/10 text-ink"
                 : "bg-muted/10 text-muted"
-            }`}
+              }`}
           >
             {admins.length}
           </span>
