@@ -14,7 +14,7 @@ export function Sidebar({ items, title }: { items: NavItem[]; title: string }) {
   const pathname = usePathname();
 
   return (
-    <aside className="hidden w-60 shrink-0 border-r border-line bg-surface md:flex md:flex-col">
+    <aside className="hidden w-60 shrink-0 sticky top-0 h-screen border-r border-line bg-surface md:flex md:flex-col">
       <div className="border-b border-line px-5 py-5">
         <span className="font-display text-lg text-ink">SmartBus</span>
         <p className="text-xs text-muted">{title}</p>

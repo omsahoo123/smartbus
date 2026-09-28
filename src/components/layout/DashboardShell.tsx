@@ -175,7 +175,7 @@ export function DashboardShell({
   return (
     <div className="flex min-h-screen bg-bg">
       {/* Desktop Sidebar */}
-      <aside className="hidden w-64 shrink-0 flex-col border-r border-line bg-surface md:flex">
+      <aside className="hidden w-64 shrink-0 sticky top-0 h-screen flex-col border-r border-line bg-surface md:flex z-20">
         {/* Brand Header */}
         <div className="flex h-16 items-center justify-between border-b border-line px-5">
           <Link href="/" className="flex items-center gap-2.5 group">
@@ -314,6 +314,14 @@ export function DashboardShell({
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
+            <div className="hidden lg:flex items-center gap-2 rounded-full bg-emerald-50 border border-emerald-200/70 px-3 py-1 text-xs font-semibold text-emerald-800">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-600"></span>
+              </span>
+              <span>Ama Bus Fleet Live</span>
+            </div>
+
             <Link
               href="/"
               className="hidden sm:flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-xs font-medium text-ink hover:bg-bg transition"
@@ -332,9 +340,75 @@ export function DashboardShell({
         </header>
 
         {/* Page Content Container */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto pb-24 md:pb-8">
           {children}
         </main>
+
+        {/* Mobile Bottom Navigation Bar (Ama Bus Mobile Experience) */}
+        {title === "Passenger" && (
+          <nav className="fixed bottom-0 inset-x-0 z-30 flex items-center justify-around border-t border-line bg-surface/95 backdrop-blur-md py-2 px-2 md:hidden shadow-lg shadow-black/5">
+            <Link
+              href="/passenger/dashboard"
+              className={clsx(
+                "flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition text-[11px] font-medium",
+                pathname === "/passenger/dashboard" ? "text-primary font-bold" : "text-muted hover:text-ink"
+              )}
+            >
+              <LayoutDashboard className="h-5 w-5" />
+              <span>Home</span>
+            </Link>
+
+            <Link
+              href="/passenger/search"
+              className={clsx(
+                "flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition text-[11px] font-medium",
+                pathname.startsWith("/passenger/search") || pathname.startsWith("/passenger/buses") ? "text-primary font-bold" : "text-muted hover:text-ink"
+              )}
+            >
+              <Search className="h-5 w-5" />
+              <span>Search</span>
+            </Link>
+
+            <Link
+              href="/passenger/tracking"
+              className={clsx(
+                "flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition text-[11px] font-medium relative",
+                pathname === "/passenger/tracking" ? "text-emerald-700 font-bold" : "text-muted hover:text-ink"
+              )}
+            >
+              <div className="relative">
+                <Radio className="h-5 w-5 text-emerald-600 animate-pulse" />
+                <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+              </div>
+              <span>Live Bus</span>
+            </Link>
+
+            <Link
+              href="/passenger/tickets"
+              className={clsx(
+                "flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition text-[11px] font-medium",
+                pathname.startsWith("/passenger/tickets") ? "text-primary font-bold" : "text-muted hover:text-ink"
+              )}
+            >
+              <Ticket className="h-5 w-5" />
+              <span>Tickets</span>
+            </Link>
+
+            <Link
+              href="/passenger/passes"
+              className={clsx(
+                "flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition text-[11px] font-medium",
+                pathname === "/passenger/passes" ? "text-primary font-bold" : "text-muted hover:text-ink"
+              )}
+            >
+              <CreditCard className="h-5 w-5" />
+              <span>Passes</span>
+            </Link>
+          </nav>
+        )}
       </div>
     </div>
   );
