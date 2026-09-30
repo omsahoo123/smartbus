@@ -62,6 +62,16 @@ export interface Stop {
   address: string | null;
 }
 
+export interface RouteStop {
+  id: string;
+  route_id: string;
+  stop_id: string;
+  sequence: number;
+  arrival_time: string | null;
+  departure_time: string | null;
+  stop?: Stop;
+}
+
 export interface Trip {
   id: string;
   bus_id: string;

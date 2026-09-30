@@ -2,7 +2,7 @@ import QRCode from "qrcode";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { TicketCard } from "@/components/booking/TicketCard";
-import { Button } from "@/components/ui/Button";
+import { TicketActions } from "@/components/booking/TicketActions";
 
 export default async function TicketDetailPage({ params }: { params: { id: string } }) {
   const supabase = createClient();
@@ -41,11 +41,11 @@ export default async function TicketDetailPage({ params }: { params: { id: strin
         status={booking.booking_status}
         qrDataUrl={qrDataUrl}
       />
-      <div className="flex gap-3">
-        <Button variant="secondary">Download</Button>
-        <Button variant="secondary">Share</Button>
-        {booking.booking_status === "confirmed" && <Button variant="danger">Cancel ticket</Button>}
-      </div>
+      <TicketActions
+        bookingId={booking.id}
+        bookingCode={booking.booking_code}
+        status={booking.booking_status}
+      />
     </div>
   );
 }

@@ -64,3 +64,39 @@ export async function listMyBookings(supabase: SupabaseClient, userId: string) {
   if (error) throw error;
   return data;
 }
+
+export async function getBookingWithLockedSeats(supabase: SupabaseClient, bookingId: string) {
+  // Fetch booking details
+  const { data: booking, error: bErr } = await supabase
+    .from("bookings")
+    .select(
+      `id, booking_code, total_amount, payment_status, booking_status, hold_expires_at, created_at, trip_id,
+       boarding_stop:stops!bookings_boarding_stop_id_fkey ( id, name ),
+       dropping_stop:stops!bookings_dropping_stop_id_fkey ( id, name ),
+       trip:trips (
+         id, trip_date,
+         bus:buses ( id, bus_number, bus_type ),
+         route:routes ( id, route_name, source, destination )
+       )`
+    )
+    .eq("id", bookingId)
+    .single();
+
+  if (bErr) throw bErr;
+
+  // Fetch seats locked for this booking
+  const { data: locks, error: lErr } = await supabase
+    .from("trip_seat_locks")
+    .select(`seat_id, seat:seats ( id, seat_number, row_number, column_number, seat_type )`)
+    .eq("booking_id", bookingId);
+
+  if (lErr) throw lErr;
+
+  const seats = (locks ?? [])
+    .map((l: any) => l.seat)
+    .filter(Boolean)
+    .sort((a: any, b: any) => (a.seat_number > b.seat_number ? 1 : -1));
+
+  return { booking, seats };
+}
+

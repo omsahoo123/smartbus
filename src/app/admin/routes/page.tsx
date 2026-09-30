@@ -9,6 +9,7 @@ import { Modal } from "@/components/ui/Modal";
 import { DataTable } from "@/components/ui/DataTable";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { listRoutes, createRoute, updateRoute, deleteRoute } from "@/services/routes";
+import { RouteStopsManager } from "@/components/admin/RouteStopsManager";
 import type { RouteRow } from "@/types/database";
 
 const EMPTY: Partial<RouteRow> = {
@@ -63,6 +64,8 @@ export default function AdminRoutesPage() {
     load();
   }
 
+  const [stopsRoute, setStopsRoute] = useState<RouteRow | null>(null);
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -82,15 +85,31 @@ export default function AdminRoutesPage() {
           { header: "Duration", cell: (r) => r.estimated_duration ?? "—" },
           { header: "Status", cell: (r) => <StatusBadge status={r.status} /> },
           {
-            header: "",
+            header: "Actions",
             cell: (r) => (
-              <div className="flex gap-3">
-                <button onClick={() => openEdit(r)} className="text-primary hover:underline">Edit</button>
+              <div className="flex items-center gap-3 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setStopsRoute(r)}
+                  className="inline-flex items-center gap-1 rounded-lg bg-primary/10 px-2.5 py-1 font-semibold text-primary hover:bg-primary/20 transition"
+                >
+                  <span>📍 Stops & Map</span>
+                </button>
+                <button onClick={() => openEdit(r)} className="text-muted hover:text-ink hover:underline">Edit</button>
                 <button onClick={() => handleDelete(r.id)} className="text-danger hover:underline">Delete</button>
               </div>
             ),
           },
         ]}
+      />
+
+      <RouteStopsManager
+        route={stopsRoute}
+        open={stopsRoute !== null}
+        onClose={() => {
+          setStopsRoute(null);
+          load();
+        }}
       />
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing.id ? "Edit route" : "Add route"}>

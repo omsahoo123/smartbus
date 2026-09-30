@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { SeatMap } from "@/components/booking/SeatMap";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { Select } from "@/components/ui/Select";
 import type { Seat } from "@/types/database";
 import {
   Bus,
@@ -16,7 +17,10 @@ import {
   ShieldCheck,
   ChevronLeft,
   Info,
-  CheckCircle2
+  CheckCircle2,
+  MapPin,
+  RefreshCw,
+  AlertCircle,
 } from "lucide-react";
 
 const FARE_PER_SEAT = 499;
@@ -27,6 +31,9 @@ export default function SeatSelectionPage({ params }: { params: { id: string } }
   const supabase = createClient();
 
   const [trip, setTrip] = useState<any>(null);
+  const [routeStops, setRouteStops] = useState<any[]>([]);
+  const [boardingStopId, setBoardingStopId] = useState<string>("");
+  const [droppingStopId, setDroppingStopId] = useState<string>("");
   const [allSeats, setAllSeats] = useState<Seat[]>([]);
   const [availableIds, setAvailableIds] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -34,12 +41,14 @@ export default function SeatSelectionPage({ params }: { params: { id: string } }
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    async function load() {
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
       const { data: tripData } = await supabase
         .from("trips")
         .select(
-          `id, trip_date, status, bus_id,
+          `id, trip_date, status, bus_id, route_id,
            bus:buses ( id, bus_number, bus_type, capacity ),
            route:routes ( id, route_name, source, destination ),
            schedule:schedules ( departure_time, arrival_time )`
@@ -47,22 +56,47 @@ export default function SeatSelectionPage({ params }: { params: { id: string } }
         .eq("id", tripId)
         .single();
 
-      if (!tripData) return setLoading(false);
+      if (!tripData) {
+        setError("Trip not found.");
+        setLoading(false);
+        return;
+      }
       setTrip(tripData);
 
-      const { data: seats } = await supabase
-        .from("seats")
-        .select("*")
-        .eq("bus_id", tripData.bus_id)
-        .order("row_number");
-      const { data: available } = await supabase.rpc("available_seats_for_trip", { p_trip_id: tripId });
+      // Fetch route stops
+      const { data: stops } = await supabase
+        .from("route_stops")
+        .select(`id, stop_id, sequence, arrival_time, departure_time, stop:stops ( id, name, address )`)
+        .eq("route_id", tripData.route_id)
+        .order("sequence", { ascending: true });
 
-      setAllSeats((seats as Seat[]) ?? []);
-      setAvailableIds(new Set((available ?? []).map((s: any) => s.id)));
+      const stopsList = (stops ?? []).filter((s) => s.stop);
+      setRouteStops(stopsList);
+
+      if (stopsList.length > 0) {
+        setBoardingStopId(stopsList[0].stop_id);
+        setDroppingStopId(stopsList[stopsList.length - 1].stop_id);
+      }
+
+      // Fetch seats & current available seats
+      const [seatsRes, availableRes] = await Promise.all([
+        supabase.from("seats").select("*").eq("bus_id", tripData.bus_id).order("row_number"),
+        supabase.rpc("available_seats_for_trip", { p_trip_id: tripId }),
+      ]);
+
+      setAllSeats((seatsRes.data as Seat[]) ?? []);
+      const availSet = new Set<string>((availableRes.data ?? []).map((s: any) => s.id));
+      setAvailableIds(availSet);
+    } catch (err: any) {
+      setError(err.message || "Failed to load trip information.");
+    } finally {
       setLoading(false);
     }
-    load();
   }, [tripId, supabase]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   function toggleSeat(seatId: string) {
     setSelected((prev) => {
@@ -75,29 +109,54 @@ export default function SeatSelectionPage({ params }: { params: { id: string } }
   async function handleContinue() {
     setError(null);
     setSubmitting(true);
+
     const { data: { session } } = await supabase.auth.getSession();
     const user = session?.user;
     if (!user) return router.push("/login");
+
     if (selected.size === 0) {
       setSubmitting(false);
       return setError("Please select at least one seat to continue.");
     }
 
-    const { data: bookingId, error: rpcError } = await supabase.rpc("reserve_seats", {
-      p_trip_id: tripId,
-      p_user_id: user.id,
-      p_seat_ids: Array.from(selected),
-      p_boarding_stop_id: null,
-      p_dropping_stop_id: null,
-    });
+    try {
+      const { data: bookingId, error: rpcError } = await supabase.rpc("reserve_seats", {
+        p_trip_id: tripId,
+        p_user_id: user.id,
+        p_seat_ids: Array.from(selected),
+        p_boarding_stop_id: boardingStopId || null,
+        p_dropping_stop_id: droppingStopId || null,
+        p_hold_minutes: 10,
+      });
 
-    if (rpcError) {
-      setError(rpcError.message);
+      if (rpcError) {
+        // Race condition / dirty read handling:
+        // If seat was just reserved by another user concurrently, inform user and refresh available seats
+        setError(rpcError.message);
+
+        // Re-fetch available seats immediately
+        const { data: latestAvailable } = await supabase.rpc("available_seats_for_trip", { p_trip_id: tripId });
+        const freshAvail = new Set<string>((latestAvailable ?? []).map((s: any) => s.id));
+        setAvailableIds(freshAvail);
+
+        // Deselect any taken seat
+        setSelected((prev) => {
+          const updated = new Set<string>();
+          prev.forEach((id) => {
+            if (freshAvail.has(id)) updated.add(id);
+          });
+          return updated;
+        });
+
+        setSubmitting(false);
+        return;
+      }
+
+      router.push(`/passenger/booking/${bookingId}`);
+    } catch (err: any) {
+      setError(err.message || "An unexpected error occurred while locking seats.");
       setSubmitting(false);
-      return;
     }
-
-    router.push(`/passenger/booking/${bookingId}`);
   }
 
   const bookedIds = new Set(allSeats.map((s) => s.id).filter((id) => !availableIds.has(id)));
@@ -156,6 +215,58 @@ export default function SeatSelectionPage({ params }: { params: { id: string } }
         </div>
       </div>
 
+      {/* ERROR BANNER */}
+      {error && (
+        <div className="rounded-xl bg-danger/10 border border-danger/30 p-3.5 text-xs text-danger flex items-center gap-2.5">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          <span className="flex-1">{error}</span>
+          <button
+            type="button"
+            onClick={loadData}
+            className="flex items-center gap-1 text-[11px] font-bold text-primary hover:underline ml-2"
+          >
+            <RefreshCw className="h-3 w-3" />
+            <span>Refresh Seats</span>
+          </button>
+        </div>
+      )}
+
+      {/* BOARDING & DROPPING STOP SELECTION */}
+      {routeStops.length > 0 && (
+        <Card className="p-4 bg-surface shadow-sm">
+          <div className="flex items-center gap-2 mb-3">
+            <MapPin className="h-4 w-4 text-primary" />
+            <h2 className="font-display text-sm font-bold text-ink">Choose Boarding & Dropping Stoppages</h2>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Select
+              label="Boarding Stoppage"
+              value={boardingStopId}
+              onChange={(e) => setBoardingStopId(e.target.value)}
+            >
+              {routeStops.map((rs, idx) => (
+                <option key={rs.stop_id} value={rs.stop_id}>
+                  Stop #{idx + 1}: {rs.stop?.name} {rs.departure_time ? `(${rs.departure_time.slice(0, 5)})` : ""}
+                </option>
+              ))}
+            </Select>
+
+            <Select
+              label="Dropping Stoppage"
+              value={droppingStopId}
+              onChange={(e) => setDroppingStopId(e.target.value)}
+            >
+              {routeStops.map((rs, idx) => (
+                <option key={rs.stop_id} value={rs.stop_id}>
+                  Stop #{idx + 1}: {rs.stop?.name} {rs.arrival_time ? `(${rs.arrival_time.slice(0, 5)})` : ""}
+                </option>
+              ))}
+            </Select>
+          </div>
+        </Card>
+      )}
+
       {/* MAIN SEAT PICKER GRID */}
       <div className="grid gap-6 lg:grid-cols-3">
         {/* SEAT MAP (2 COLS ON DESKTOP) */}
@@ -168,7 +279,7 @@ export default function SeatSelectionPage({ params }: { params: { id: string } }
                 Select Your Desired Seat
               </h2>
               <p className="text-xs text-muted text-center mb-6">
-                Click on any available green/white seat to select or deselect.
+                Click on any available white seat to select. Orange represents your selection.
               </p>
 
               <SeatMap
@@ -178,12 +289,6 @@ export default function SeatSelectionPage({ params }: { params: { id: string } }
                 onToggle={toggleSeat}
               />
             </Card>
-          )}
-          {error && (
-            <div className="mt-3 rounded-xl bg-danger/10 border border-danger/30 p-3 text-sm text-danger flex items-center gap-2">
-              <Info className="h-4 w-4 shrink-0" />
-              <span>{error}</span>
-            </div>
           )}
         </div>
 
@@ -222,13 +327,13 @@ export default function SeatSelectionPage({ params }: { params: { id: string } }
               className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#E9A23B] to-[#F59E0B] py-3 px-4 text-sm font-bold text-white shadow-lg shadow-amber-500/25 hover:shadow-amber-500/40 hover:brightness-105 active:scale-95 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <CheckCircle2 className="h-4 w-4" />
-              <span>{submitting ? "Reserving..." : "Proceed to Passenger Details"}</span>
+              <span>{submitting ? "Reserving atomic lock..." : "Proceed to Passenger Details"}</span>
             </button>
 
             <div className="mt-4 flex items-start gap-2 rounded-xl bg-bg p-3 text-xs text-muted border border-line">
               <ShieldCheck className="h-4 w-4 text-primary shrink-0 mt-0.5" />
               <span>
-                Atomic reservation locks your seats for 10 minutes while you finalize passenger details and confirm.
+                Atomic reservation locks your seats for 10 minutes, protecting against dirty reads and concurrent double-booking.
               </span>
             </div>
           </Card>

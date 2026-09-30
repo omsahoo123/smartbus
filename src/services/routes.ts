@@ -86,3 +86,74 @@ export async function deleteRoute(supabase: SupabaseClient, id: string) {
   const { error } = await supabase.from("routes").delete().eq("id", id);
   if (error) throw error;
 }
+
+export async function listRouteStops(supabase: SupabaseClient, routeId: string) {
+  const { data, error } = await supabase
+    .from("route_stops")
+    .select(`id, route_id, stop_id, sequence, arrival_time, departure_time, stop:stops ( id, name, latitude, longitude, address )`)
+    .eq("route_id", routeId)
+    .order("sequence", { ascending: true });
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function addRouteStop(
+  supabase: SupabaseClient,
+  input: {
+    route_id: string;
+    stop_id: string;
+    sequence: number;
+    arrival_time?: string | null;
+    departure_time?: string | null;
+  }
+) {
+  const { data, error } = await supabase
+    .from("route_stops")
+    .insert(input)
+    .select(`id, route_id, stop_id, sequence, arrival_time, departure_time, stop:stops ( id, name, latitude, longitude, address )`)
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateRouteStop(
+  supabase: SupabaseClient,
+  id: string,
+  input: Partial<{ sequence: number; arrival_time: string | null; departure_time: string | null }>
+) {
+  const { data, error } = await supabase
+    .from("route_stops")
+    .update(input)
+    .eq("id", id)
+    .select(`id, route_id, stop_id, sequence, arrival_time, departure_time, stop:stops ( id, name, latitude, longitude, address )`)
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteRouteStop(supabase: SupabaseClient, id: string) {
+  const { error } = await supabase.from("route_stops").delete().eq("id", id);
+  if (error) throw error;
+}
+
+export async function reorderRouteStops(supabase: SupabaseClient, routeId: string, orderedStopIds: string[]) {
+  // Try RPC first if available, else sequential updates
+  try {
+    const { error } = await supabase.rpc("reorder_route_stops", {
+      p_route_id: routeId,
+      p_stop_ids: orderedStopIds,
+    });
+    if (!error) return;
+  } catch {
+    // fallback
+  }
+
+  for (let i = 0; i < orderedStopIds.length; i++) {
+    await supabase
+      .from("route_stops")
+      .update({ sequence: i + 1 })
+      .eq("route_id", routeId)
+      .eq("stop_id", orderedStopIds[i]);
+  }
+}
+
